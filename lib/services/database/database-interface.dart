@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:piggybank/models/category-type.dart';
 import 'package:piggybank/models/category.dart';
 import 'package:piggybank/models/record.dart';
@@ -24,6 +25,7 @@ abstract class DatabaseInterface {
   Future<Record?> getRecordById(int id);
   Future<void> deleteRecordById(int? id);
   Future<int> addRecord(Record? record);
+  Future<void> addRecordsInBatch(List<Record?> records);
   Future<int?> updateRecordById(int? recordId, Record? newRecord);
   Future<DateTime?> getDateTimeFirstRecord();
   Future<List<Record?>> getAllRecords();

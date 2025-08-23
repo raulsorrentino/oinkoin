@@ -14,10 +14,10 @@ class InMemoryDatabase implements DatabaseInterface {
 
   static List<Category?> _categories = [
     Category("Rent",
-        iconCodePoint: FontAwesomeIcons.home.codePoint,
+        iconCodePoint: FontAwesomeIcons.house.codePoint,
         categoryType: CategoryType.expense),
     Category("Food",
-        iconCodePoint: FontAwesomeIcons.hamburger.codePoint,
+        iconCodePoint: FontAwesomeIcons.burger.codePoint,
         categoryType: CategoryType.expense),
     Category("Salary",
         iconCodePoint: FontAwesomeIcons.wallet.codePoint,
@@ -84,6 +84,15 @@ class InMemoryDatabase implements DatabaseInterface {
     movement!.id = _movements.length + 1;
     _movements.add(movement);
     return Future<int>.value(movement.id);
+  }
+
+  @override
+  Future<void> addRecordsInBatch(List<Record?> records) async {
+    for (var record in records) {
+      if (record != null) {
+        addRecord(record);
+      }
+    }
   }
 
   @override

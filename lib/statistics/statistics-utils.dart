@@ -1,7 +1,9 @@
+import 'dart:ui';
+
+import "package:collection/collection.dart";
 import 'package:piggybank/models/category.dart';
 import 'package:piggybank/models/record.dart';
 import 'package:piggybank/statistics/statistics-models.dart';
-import "package:collection/collection.dart";
 
 double computeNumberOfMonthsBetweenTwoDates(DateTime from, DateTime to) {
   var apprxSizeOfMonth = 30;
@@ -44,20 +46,20 @@ double? computeAverage(DateTime from, DateTime to,
   }
 }
 
-DateTime? truncateDateTime(
-    DateTime? dateTime, AggregationMethod? aggregationMethod) {
-  DateTime? newDateTime;
+DateTime truncateDateTime(
+    DateTime dateTime, AggregationMethod? aggregationMethod) {
+  DateTime newDateTime;
   switch (aggregationMethod!) {
     case AggregationMethod.DAY:
-      newDateTime = new DateTime(dateTime!.year, dateTime.month, dateTime.day);
+      newDateTime = new DateTime(dateTime.year, dateTime.month, dateTime.day);
       break;
     case AggregationMethod.MONTH:
-      newDateTime = new DateTime(dateTime!.year, dateTime.month);
+      newDateTime = new DateTime(dateTime.year, dateTime.month);
       break;
     case AggregationMethod.YEAR:
-      newDateTime = new DateTime(dateTime!.year);
+      newDateTime = new DateTime(dateTime.year);
       break;
-    case AggregationMethod.CUSTOM:
+    case AggregationMethod.NOT_AGGREGATED:
       newDateTime = dateTime;
       break;
   }
@@ -89,7 +91,7 @@ List<Record?> aggregateRecordsByDateAndCategory(
   /// Record Day 1: 100 euro Food, 20 euro Food, 30 euro Transport
   /// Record Day 1: 120 euro food, 30 euro transports.
   /// Available grouping: by day, month, year.
-  if (aggregationMethod == AggregationMethod.CUSTOM)
+  if (aggregationMethod == AggregationMethod.NOT_AGGREGATED)
     return records; // don't aggregate
   List<Record?> newAggregatedRecords = [];
   Map<DateTime?, List<Record?>> mapDateTimeRecords = groupBy(records,
@@ -104,7 +106,7 @@ List<Record?> aggregateRecordsByDateAndCategory(
         var value = recordsSameDateTimeSameCategory.value.fold(0,
             (dynamic previousValue, element) => previousValue + element!.value);
         aggregatedRecord = new Record(value, category.name, category,
-            truncateDateTime(recordsByDatetime.key, aggregationMethod));
+            truncateDateTime(recordsByDatetime.key!, aggregationMethod));
         aggregatedRecord.aggregatedValues =
             recordsSameDateTimeSameCategory.value.length;
       } else {
@@ -114,4 +116,11 @@ List<Record?> aggregateRecordsByDateAndCategory(
     }
   }
   return newAggregatedRecords;
+}
+
+int getColorSortValue(Color color) {
+  int red = (color.r * 255).toInt();
+  int green = (color.g * 255).toInt();
+  int blue = (color.b * 255).toInt();
+  return (red << 16) | (green << 8) | blue;
 }

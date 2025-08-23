@@ -1,15 +1,18 @@
 import 'dart:core';
 import 'dart:developer';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:i18n_extension/i18n_extension.dart';
 import 'package:month_picker_dialog/month_picker_dialog.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:piggybank/categories/categories-tab-page-view.dart';
-import 'package:piggybank/components/year-picker.dart';
+import 'package:piggybank/components/year-picker.dart' as yp;
 import 'package:piggybank/helpers/alert-dialog-builder.dart';
 import 'package:piggybank/helpers/datetime-utility-functions.dart';
+import 'package:piggybank/i18n.dart';
 import 'package:piggybank/models/record.dart';
 import 'package:piggybank/premium/splash-screen.dart';
 import 'package:piggybank/records/records-day-list.dart';
@@ -18,13 +21,13 @@ import 'package:piggybank/services/csv-service.dart';
 import 'package:piggybank/services/database/database-interface.dart';
 import 'package:piggybank/services/recurrent-record-service.dart';
 import 'package:piggybank/services/service-config.dart';
+import 'package:piggybank/settings/constants/homepage-time-interval.dart';
+import 'package:piggybank/settings/constants/overview-time-interval.dart';
 import 'package:piggybank/statistics/statistics-page.dart';
 import 'package:share_plus/share_plus.dart';
+
 import '../helpers/records-utility-functions.dart';
 import 'days-summary-box-card.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:piggybank/i18n.dart';
-import 'dart:io';
 
 class TabRecords extends StatefulWidget {
   /// MovementsPage is the page showing the list of movements grouped per day.
@@ -38,6 +41,9 @@ class TabRecords extends StatefulWidget {
 
 class TabRecordsState extends State<TabRecords> {
   List<Record?> records = [];
+  List<Record?>? overviewRecords =
+      null; // it is important this to be null, meaning records will be used!
+
   DatabaseInterface database = ServiceConfig.database;
   String _header = "";
 
@@ -65,13 +71,8 @@ class TabRecordsState extends State<TabRecords> {
     _listener = AppLifecycleListener(
       onStateChange: _handleOnResume,
     );
-    RecurrentRecordService().updateRecurrentRecords().then((_) {
-      getRecordsByUserDefinedInterval(database).then((fetchedRecords) {
-        setState(() {
-          records = fetchedRecords;
-          _header = getHeaderForUserDefinedInterval();
-        });
-      });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      updateRecurrentRecordsAndFetchRecords();
     });
   }
 
@@ -86,6 +87,12 @@ class TabRecordsState extends State<TabRecords> {
         runAutomaticBackup();
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _listener.dispose();
+    super.dispose();
   }
 
   @override
@@ -127,11 +134,9 @@ class TabRecordsState extends State<TabRecords> {
     DateTime? currentDate = _customIntervalFrom ?? DateTime.now();
     int currentYear = DateTime.now().year;
     DateTime? dateTime = await showMonthPicker(
-      context: context,
-      lastDate: DateTime(currentYear + 1, 12),
-      initialDate: currentDate,
-      locale: I18n.locale,
-    );
+        context: context,
+        lastDate: DateTime(currentYear + 1, 12),
+        initialDate: currentDate);
     if (dateTime != null) {
       _customIntervalFrom = new DateTime(dateTime.year, dateTime.month, 1);
       _customIntervalTo = getEndOfMonth(dateTime.year, dateTime.month);
@@ -152,7 +157,7 @@ class TabRecordsState extends State<TabRecords> {
     DateTime initialDate = DateTime(currentDate.year, 1);
     DateTime lastDate = DateTime(currentDate.year + 1, 1);
     DateTime firstDate = DateTime(1950, currentDate.month);
-    DateTime? yearPicked = await showYearPicker(
+    DateTime? yearPicked = await yp.showYearPicker(
       firstDate: firstDate,
       lastDate: lastDate,
       initialDate: initialDate,
@@ -163,7 +168,7 @@ class TabRecordsState extends State<TabRecords> {
       _customIntervalTo = new DateTime(yearPicked.year, 12, 31, 23, 59);
       var newRecords = await getRecordsByYear(database, yearPicked.year);
       setState(() {
-        _header = getDateRangeStr(_customIntervalFrom!, _customIntervalTo!);
+        _header = getYearStr(_customIntervalFrom!);
         records = newRecords;
       });
     }
@@ -179,13 +184,11 @@ class TabRecordsState extends State<TabRecords> {
     DateTimeRange initialDateTimeRange = DateTimeRange(
         start: DateTime.now().subtract(Duration(days: 7)), end: currentDate);
     DateTimeRange? dateTimeRange = await showDateRangePicker(
-      context: context,
-      firstDate: firstDate,
-      lastDate: lastDate,
-      initialDateRange: initialDateTimeRange,
-      locale: I18n
-          .forcedLocale, // do not change, it has some bug if not used forced locale
-    );
+        context: context,
+        firstDate: firstDate,
+        lastDate: lastDate,
+        initialDateRange: initialDateTimeRange,
+        locale: I18n.locale);
     if (dateTimeRange != null) {
       _customIntervalFrom = DateTime(dateTimeRange.start.year,
           dateTimeRange.start.month, dateTimeRange.start.day);
@@ -325,18 +328,32 @@ class TabRecordsState extends State<TabRecords> {
       newRecords = await getRecordsByInterval(
           database, _customIntervalFrom, _customIntervalTo);
     } else {
+      var hti = getHomepageTimeIntervalEnumSetting();
+
       // Use the pre-defined choice of the user
-      newRecords = await getRecordsByUserDefinedInterval(database);
+      newRecords = await getRecordsByHomepageTimeInterval(database, hti);
 
       // Need to change the header also here
       // Since the user can define a new settings and come back to this page
       setState(() {
-        _header = getHeaderForUserDefinedInterval();
+        _header = getHeaderFromHomepageTimeInterval(hti);
       });
     }
     setState(() {
       records = newRecords;
     });
+    OverviewTimeInterval overviewTimeIntervalEnum =
+        getHomepageOverviewWidgetTimeIntervalEnumSetting();
+    if (overviewTimeIntervalEnum != OverviewTimeInterval.DisplayedRecords) {
+      HomepageTimeInterval recordTimeIntervalEnum =
+          mapOverviewTimeIntervalToHomepageTimeInterval(
+              overviewTimeIntervalEnum);
+      var fetchedRecords = await getRecordsByHomepageTimeInterval(
+          database, recordTimeIntervalEnum);
+      setState(() {
+        overviewRecords = fetchedRecords;
+      });
+    }
   }
 
   navigateToAddNewMovementPage() async {
@@ -371,7 +388,8 @@ class TabRecordsState extends State<TabRecords> {
   navigateToStatisticsPage() {
     /// Navigate to the Statistics Page
     if (_customIntervalTo == null) {
-      getUserDefinedInterval(database)
+      var hti = getHomepageTimeIntervalEnumSetting();
+      getTimeIntervalFromHomepageTimeInterval(database, hti)
           .then((userDefinedInterval) => Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -394,97 +412,146 @@ class TabRecordsState extends State<TabRecords> {
     await _categoryTabPageViewStateKey.currentState?.refreshCategories();
   }
 
+  bool _isAppBarExpanded = true;
+
   @override
   Widget build(BuildContext context) {
     double headerFontSize = _header.length > 13 ? 18 : 22;
     double headerPaddingBottom = _header.length > 13 ? 15 : 13;
+
+    bool canShiftBack = canShift(-1, _customIntervalFrom, _customIntervalTo,
+        getHomepageTimeIntervalEnumSetting());
+
+    bool canShiftForward = canShift(1, _customIntervalFrom, _customIntervalTo,
+        getHomepageTimeIntervalEnumSetting());
+
     return Scaffold(
-      body: new CustomScrollView(slivers: [
-        SliverAppBar(
-          elevation: 0,
-          backgroundColor: Theme.of(context).primaryColor,
-          actions: <Widget>[
-            IconButton(
+      body: NotificationListener<ScrollNotification>(
+        onNotification: (ScrollNotification scrollInfo) {
+          setState(() {
+            _isAppBarExpanded = scrollInfo.metrics.pixels < 100;
+          });
+          return true;
+        },
+        child: CustomScrollView(slivers: [
+          SliverAppBar(
+            elevation: 0,
+            backgroundColor: Theme.of(context).primaryColor,
+            actions: <Widget>[
+              IconButton(
+                  icon: Semantics(
+                      identifier: 'select-date',
+                      child: Icon(Icons.calendar_today)),
+                  onPressed: () async => await _showSelectDateDialog(),
+                  color: Colors.white),
+              IconButton(
+                  icon: Semantics(
+                      identifier: 'statistics', child: Icon(Icons.donut_small)),
+                  onPressed: () => navigateToStatisticsPage(),
+                  color: Colors.white),
+              PopupMenuButton<int>(
                 icon: Semantics(
-                    identifier: 'select-date',
-                    child: Icon(Icons.calendar_today)
+                    identifier: 'three-dots',
+                    child: Icon(Icons.more_vert, color: Colors.white)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(
+                    Radius.circular(10.0),
+                  ),
                 ),
-                onPressed: () async => await _showSelectDateDialog(),
-                color: Colors.white),
-            IconButton(
-                icon: Semantics(
-                    identifier: 'statistics',
-                    child: Icon(Icons.donut_small)
-                ),
-                onPressed: () => navigateToStatisticsPage(),
-                color: Colors.white),
-            PopupMenuButton<int>(
-              icon: Semantics(
-                  identifier: 'three-dots',
-                  child: Icon(Icons.more_vert, color: Colors.white)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(
-                  Radius.circular(10.0),
-                ),
+                onSelected: (index) async {
+                  if (index == 1) {
+                    var csvStr =
+                        CSVExporter.createCSVFromRecordList(this.records);
+                    final path = await getApplicationDocumentsDirectory();
+                    var backupJsonOnDisk = File(path.path + "/records.csv");
+                    await backupJsonOnDisk.writeAsString(csvStr);
+                    SharePlus.instance.share(
+                        ShareParams(files: [XFile(backupJsonOnDisk.path)]));
+                  }
+                },
+                itemBuilder: (BuildContext context) {
+                  return {"Export CSV".i18n: 1}.entries.map((entry) {
+                    return PopupMenuItem<int>(
+                      padding: EdgeInsets.all(20),
+                      value: entry.value,
+                      child: Text(entry.key,
+                          style: TextStyle(
+                            fontSize: 16,
+                          )),
+                    );
+                  }).toList();
+                },
               ),
-              onSelected: (index) async {
-                if (index == 1) {
-                  var csvStr =
-                      CSVExporter.createCSVFromRecordList(this.records);
-                  final path = await getApplicationDocumentsDirectory();
-                  var backupJsonOnDisk = File(path.path + "/records.csv");
-                  await backupJsonOnDisk.writeAsString(csvStr);
-                  Share.shareFiles([backupJsonOnDisk.path]);
-                }
-              },
-              itemBuilder: (BuildContext context) {
-                return {"Export CSV".i18n: 1}.entries.map((entry) {
-                  return PopupMenuItem<int>(
-                    padding: EdgeInsets.all(20),
-                    value: entry.value,
-                    child: Text(entry.key,
-                        style: TextStyle(
-                          fontSize: 16,
-                        )),
-                  );
-                }).toList();
-              },
-            ),
-          ],
-          pinned: true,
-          expandedHeight: 180,
-          flexibleSpace: FlexibleSpaceBar(
-              stretchModes: <StretchMode>[
-                StretchMode.zoomBackground,
-                StretchMode.blurBackground,
-                StretchMode.fadeTitle,
-              ],
-              centerTitle: false,
-              titlePadding:
-                  EdgeInsets.fromLTRB(15, 15, 15, headerPaddingBottom),
-              title: Semantics(
-                identifier: 'date-text',
-                child: Text(_header,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.white, fontSize: headerFontSize,
-                    )),
-              ),
-              background: ColorFiltered(
-                  colorFilter: ColorFilter.mode(
-                      Colors.black.withOpacity(0.1), BlendMode.srcATop),
-                  child: Container(
-                      decoration: BoxDecoration(
-                          image: DecorationImage(
-                              fit: BoxFit.cover,
-                              image: getBackgroundImage()))))),
-        ),
-        SliverList(
-            delegate: SliverChildListDelegate(
-          [
+            ],
+            pinned: true,
+            expandedHeight: 180,
+            flexibleSpace: FlexibleSpaceBar(
+                stretchModes: <StretchMode>[
+                  StretchMode.zoomBackground,
+                  StretchMode.blurBackground,
+                  StretchMode.fadeTitle,
+                ],
+                centerTitle: false,
+                titlePadding: !_isAppBarExpanded
+                    ? EdgeInsets.fromLTRB(15, 15, 15, headerPaddingBottom)
+                    : EdgeInsets.fromLTRB(canShiftBack ? 0 : 15, 15,
+                        canShiftForward ? 0 : 15, headerPaddingBottom),
+                title: Row(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    if (_isAppBarExpanded && canShiftBack)
+                      SizedBox(
+                        height: 30,
+                        width: 30,
+                        child: IconButton(
+                          icon: Icon(Icons.arrow_left,
+                              color: Colors.white, size: 24),
+                          onPressed: () async => shiftMonthOrYear(-1),
+                          padding: EdgeInsets.zero,
+                          constraints: BoxConstraints(),
+                        ),
+                      ),
+                    Expanded(
+                      child: Semantics(
+                        identifier: 'date-text',
+                        child: Text(
+                          _header,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.left,
+                          style: TextStyle(
+                              color: Colors.white, fontSize: headerFontSize),
+                        ),
+                      ),
+                    ),
+                    if (_isAppBarExpanded && canShiftForward)
+                      SizedBox(
+                        height: 30,
+                        width: 30,
+                        child: IconButton(
+                          icon: Icon(Icons.arrow_right,
+                              color: Colors.white, size: 24),
+                          onPressed: () async => shiftMonthOrYear(1),
+                          padding: EdgeInsets.zero,
+                          constraints: BoxConstraints(),
+                        ),
+                      ),
+                  ],
+                ),
+                background: ColorFiltered(
+                    colorFilter: ColorFilter.mode(
+                        Colors.black.withValues(alpha: 0.1), BlendMode.srcATop),
+                    child: Container(
+                        decoration: BoxDecoration(
+                            image: DecorationImage(
+                                fit: BoxFit.cover,
+                                image: getBackgroundImage()))))),
+          ),
+          SliverList(
+              delegate: SliverChildListDelegate([
             Container(
                 margin: const EdgeInsets.fromLTRB(6, 10, 6, 5),
                 height: 100,
-                child: DaysSummaryBox(records)),
+                child: DaysSummaryBox(overviewRecords ?? records)),
             Divider(indent: 50, endIndent: 50),
             records.length == 0
                 ? Container(
@@ -504,19 +571,19 @@ class TabRecordsState extends State<TabRecords> {
                     ],
                   ))
                 : Container()
-          ],
-        )),
-        RecordsDayList(
-          records,
-          onListBackCallback: updateRecurrentRecordsAndFetchRecords,
-        ),
-        SliverList(
-            delegate: SliverChildListDelegate([
-          SizedBox(
-            height: 75,
-          )
-        ]))
-      ]),
+          ])),
+          RecordsDayList(
+            records,
+            onListBackCallback: updateRecurrentRecordsAndFetchRecords,
+          ),
+          SliverList(
+              delegate: SliverChildListDelegate([
+            SizedBox(
+              height: 75,
+            )
+          ]))
+        ]),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async => await navigateToAddNewMovementPage(),
         tooltip: 'Add a new record'.i18n,
@@ -526,5 +593,50 @@ class TabRecordsState extends State<TabRecords> {
         ),
       ),
     );
+  }
+
+  void shiftMonthOrYear(int shift) async {
+    DateTime newFrom;
+    DateTime newTo;
+    List<Record?> newRecords = [];
+    String newHeader;
+    if (_customIntervalFrom != null) {
+      if (isFullMonth(_customIntervalFrom!, _customIntervalTo!)) {
+        newFrom = DateTime(
+            _customIntervalFrom!.year, _customIntervalFrom!.month + shift, 1);
+        newTo = getEndOfMonth(newFrom.year, newFrom.month);
+        newHeader = getMonthStr(newFrom);
+        newRecords =
+            await getRecordsByMonth(database, newFrom.year, newFrom.month);
+      } else {
+        // Is full-year
+        newFrom = DateTime(_customIntervalFrom!.year + shift, 1, 1);
+        newTo = new DateTime(newFrom.year, 12, 31, 23, 59);
+        newRecords = await getRecordsByYear(database, newFrom.year);
+        newHeader = getYearStr(newFrom);
+      }
+    } else {
+      HomepageTimeInterval hti = getHomepageTimeIntervalEnumSetting();
+      DateTime d = DateTime.now();
+      if (hti == HomepageTimeInterval.CurrentMonth) {
+        newFrom = DateTime(d.year, d.month + shift, 1);
+        newTo = getEndOfMonth(newFrom.year, newFrom.month);
+        newHeader = getMonthStr(newFrom);
+        newRecords =
+            await getRecordsByMonth(database, newFrom.year, newFrom.month);
+      } else {
+        // hti == CurrentYear
+        newFrom = DateTime(d.year + shift, 1, 1);
+        newTo = new DateTime(newFrom.year, 12, 31, 23, 59);
+        newRecords = await getRecordsByYear(database, newFrom.year);
+        newHeader = getYearStr(newFrom);
+      }
+    }
+    setState(() {
+      _customIntervalFrom = newFrom;
+      _customIntervalTo = newTo;
+      _header = newHeader;
+      records = newRecords;
+    });
   }
 }

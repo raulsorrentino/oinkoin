@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For PlatformException
+import 'package:i18n_extension/i18n_extension.dart';
 import 'package:local_auth/local_auth.dart'; // Ensure this is added in pubspec.yaml
+import 'package:piggybank/i18n.dart';
 import 'package:piggybank/records/records-page.dart';
+import 'package:piggybank/settings/constants/preferences-keys.dart';
+import 'package:piggybank/settings/preferences-utils.dart';
 import 'package:piggybank/settings/settings-page.dart';
 import 'package:piggybank/style.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'categories/categories-tab-page-edit.dart';
-import 'package:piggybank/i18n.dart';
 
 class Shell extends StatefulWidget {
   @override
@@ -23,7 +27,8 @@ class ShellState extends State<Shell> {
 
   Future<bool> _authenticate() async {
     var pref = await SharedPreferences.getInstance();
-    var enableAppLock = pref.getBool("enableAppLock") ?? false;
+    var enableAppLock = PreferencesUtils.getOrDefault<bool>(
+        pref, PreferencesKeys.enableAppLock)!;
     if (enableAppLock) {
       try {
         var authResult = await auth.authenticate(
@@ -47,6 +52,7 @@ class ShellState extends State<Shell> {
 
   @override
   Widget build(BuildContext context) {
+    print("Shell build called");
     return FutureBuilder<bool>(
       future: authFuture,
       builder: (context, snapshot) {
@@ -92,7 +98,6 @@ class ShellState extends State<Shell> {
     );
   }
 
-
   Widget _buildMainUI(BuildContext context) {
     ThemeData themeData = Theme.of(context);
     MaterialThemeInstance.currentTheme = themeData;
@@ -108,6 +113,7 @@ class ShellState extends State<Shell> {
             enabled: _currentIndex == 0,
             child: MaterialApp(
               home: TabRecords(key: _tabRecordsKey),
+              localizationsDelegates: I18n.localizationsDelegates,
               title: "Oinkoin",
               theme: lightTheme,
               darkTheme: darkTheme,
@@ -122,6 +128,7 @@ class ShellState extends State<Shell> {
             child: MaterialApp(
               home: TabCategories(key: _tabCategoriesKey),
               title: "Oinkoin",
+              localizationsDelegates: I18n.localizationsDelegates,
               theme: lightTheme,
               darkTheme: darkTheme,
               themeMode: themeMode,
@@ -134,6 +141,7 @@ class ShellState extends State<Shell> {
             enabled: _currentIndex == 2,
             child: MaterialApp(
               home: TabSettings(),
+              localizationsDelegates: I18n.localizationsDelegates,
               title: "Oinkoin",
               theme: lightTheme,
               darkTheme: darkTheme,

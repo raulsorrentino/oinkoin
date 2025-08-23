@@ -1,11 +1,15 @@
+// file: edit-record-page.dart
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:flutter_typeahead/flutter_typeahead.dart';
+import 'package:function_tree/function_tree.dart';
 import 'package:piggybank/categories/categories-tab-page-view.dart';
 import 'package:piggybank/helpers/alert-dialog-builder.dart';
 import 'package:piggybank/helpers/datetime-utility-functions.dart';
 import 'package:piggybank/helpers/records-utility-functions.dart';
+import 'package:piggybank/i18n.dart';
 import 'package:piggybank/models/category-type.dart';
 import 'package:piggybank/models/category.dart';
 import 'package:piggybank/models/record.dart';
@@ -14,33 +18,29 @@ import 'package:piggybank/premium/splash-screen.dart';
 import 'package:piggybank/premium/util-widgets.dart';
 import 'package:piggybank/services/database/database-interface.dart';
 import 'package:piggybank/services/service-config.dart';
+
 import '../components/category_icon_circle.dart';
 import '../models/recurrent-record-pattern.dart';
-import 'package:piggybank/i18n.dart';
-
-import 'package:function_tree/function_tree.dart';
-
-import 'package:flutter_typeahead/flutter_typeahead.dart';
+import '../settings/constants/preferences-keys.dart';
+import '../settings/preferences-utils.dart';
 
 class EditRecordPage extends StatefulWidget {
-  /// EditMovementPage is a page containing forms for the editing of a Movement object.
-  /// EditMovementPage can take the movement object to edit as a constructor parameters
-  /// or can create a new Movement otherwise.
-
   final Record? passedRecord;
   final Category? passedCategory;
   final RecurrentRecordPattern? passedReccurrentRecordPattern;
+  final bool readOnly;
 
   EditRecordPage(
       {Key? key,
       this.passedRecord,
       this.passedCategory,
-      this.passedReccurrentRecordPattern})
+      this.passedReccurrentRecordPattern,
+      this.readOnly = false})
       : super(key: key);
 
   @override
   EditRecordPageState createState() => EditRecordPageState(this.passedRecord,
-      this.passedCategory, this.passedReccurrentRecordPattern);
+      this.passedCategory, this.passedReccurrentRecordPattern, this.readOnly);
 }
 
 class EditRecordPageState extends State<EditRecordPage> {
@@ -51,6 +51,7 @@ class EditRecordPageState extends State<EditRecordPage> {
 
   Record? passedRecord;
   Category? passedCategory;
+  bool readOnly = false;
   RecurrentRecordPattern? passedReccurrentRecordPattern;
 
   RecurrentPeriod? recurrentPeriod;
@@ -60,8 +61,10 @@ class EditRecordPageState extends State<EditRecordPage> {
   DateTime? lastCharInsertedMillisecond;
   late bool enableRecordNameSuggestions;
 
+  DateTime? localDisplayDate;
+
   EditRecordPageState(this.passedRecord, this.passedCategory,
-      this.passedReccurrentRecordPattern);
+      this.passedReccurrentRecordPattern, this.readOnly);
 
   static final dropDownList = [
     new DropdownMenuItem<int>(
@@ -149,19 +152,20 @@ class EditRecordPageState extends State<EditRecordPage> {
     // Loading preferences
     bool overwriteDotValue = getOverwriteDotValue();
     bool overwriteCommaValue = getOverwriteCommaValue();
-    enableRecordNameSuggestions = ServiceConfig.sharedPreferences
-            ?.getBool("enableRecordNameSuggestions") ??
-        true;
+    enableRecordNameSuggestions = PreferencesUtils.getOrDefault<bool>(
+        ServiceConfig.sharedPreferences!,
+        PreferencesKeys.enableRecordNameSuggestions)!;
 
     // Loading parameters passed to the page
 
     if (passedRecord != null) {
       // I am editing an existing record
       record = passedRecord;
+      // Use the localDateTime getter for display purposes
+      localDisplayDate = passedRecord!.localDateTime;
       _textEditingController.text =
           getCurrencyValueString(record!.value!.abs(), turnOffGrouping: true);
       if (record!.recurrencePatternId != null) {
-        // the record I am editing comes from a recurrent pattern
         database
             .getRecurrentRecordPattern(record!.recurrencePatternId)
             .then((value) {
@@ -175,13 +179,20 @@ class EditRecordPageState extends State<EditRecordPage> {
       }
     } else if (passedReccurrentRecordPattern != null) {
       // I am editing a recurrent pattern
-      record = new Record(
+      // Instantiate a new Record object from the pattern
+      record = Record(
         passedReccurrentRecordPattern!.value,
         passedReccurrentRecordPattern!.title,
         passedReccurrentRecordPattern!.category,
-        passedReccurrentRecordPattern!.dateTime,
+        // The record's utcDateTime is from the pattern's utcDateTime
+        passedReccurrentRecordPattern!.utcDateTime,
+        // The record's timezone name is from the pattern's timezone name
+        timeZoneName: passedReccurrentRecordPattern!.timeZoneName,
         description: passedReccurrentRecordPattern!.description,
       );
+      // Use the localDateTime for display
+      localDisplayDate = passedReccurrentRecordPattern!.localDateTime;
+
       _textEditingController.text =
           getCurrencyValueString(record!.value!.abs(), turnOffGrouping: true);
       setState(() {
@@ -191,12 +202,12 @@ class EditRecordPageState extends State<EditRecordPage> {
       });
     } else {
       // I am adding a new record
-      record = new Record(null, null, passedCategory, DateTime.now());
+      // Create a new record with a UTC timestamp and the current local timezone
+      record = Record(null, null, passedCategory, DateTime.now().toUtc());
+      localDisplayDate = record!.localDateTime;
     }
 
-    // Keyboard listeners initializations
-
-    // char validation
+    // Keyboard listeners initializations (the same as before)
     _textEditingController.addListener(() {
       lastCharInsertedMillisecond = DateTime.now();
       var text = _textEditingController.text.toLowerCase();
@@ -211,11 +222,7 @@ class EditRecordPageState extends State<EditRecordPage> {
       if (overwriteCommaValue) {
         text = text.replaceAll(",", ".");
       }
-
-      // Get the current selection
       TextSelection previousSelection = _textEditingController.selection;
-
-      // Update the text
       _textEditingController.value = _textEditingController.value.copyWith(
         text: text,
         selection: previousSelection,
@@ -236,7 +243,17 @@ class EditRecordPageState extends State<EditRecordPage> {
     _typeAheadController.text = initialValue;
   }
 
+  @override
+  void dispose() {
+    _textEditingController.dispose();
+    _typeAheadController.dispose();
+    super.dispose();
+  }
+
   Widget _createAddNoteCard() {
+    if (readOnly && record!.description == null) {
+      return Container();
+    }
     return Card(
       elevation: 1,
       child: Container(
@@ -250,9 +267,10 @@ class EditRecordPageState extends State<EditRecordPage> {
                   record!.description = text;
                 });
               },
+              enabled: !readOnly,
               style: TextStyle(
-                fontSize: 22.0,
-              ),
+                  fontSize: 22.0,
+                  color: Theme.of(context).colorScheme.onSurface),
               initialValue: record!.description,
               maxLines: null,
               keyboardType: TextInputType.multiline,
@@ -280,6 +298,7 @@ class EditRecordPageState extends State<EditRecordPage> {
             return Semantics(
               identifier: 'record-name-field',
               child: TextFormField(
+                  enabled: !readOnly,
                   controller: controller,
                   focusNode: focusNode,
                   onChanged: (text) {
@@ -288,8 +307,8 @@ class EditRecordPageState extends State<EditRecordPage> {
                     });
                   },
                   style: TextStyle(
-                    fontSize: 22.0,
-                  ),
+                      fontSize: 22.0,
+                      color: Theme.of(context).colorScheme.onSurface),
                   maxLines: 1,
                   keyboardType: TextInputType.text,
                   decoration: InputDecoration(
@@ -332,6 +351,9 @@ class EditRecordPageState extends State<EditRecordPage> {
           child: Column(children: [
             InkWell(
               onTap: () async {
+                if (readOnly) {
+                  return; // do nothing
+                }
                 var selectedCategory = await Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -352,8 +374,7 @@ class EditRecordPageState extends State<EditRecordPage> {
                     CategoryIconCircle(
                         iconEmoji: record!.category!.iconEmoji,
                         iconDataFromDefaultIconSet: record!.category!.icon,
-                        backgroundColor: record!.category!.color
-                    ),
+                        backgroundColor: record!.category!.color),
                     Container(
                       margin: EdgeInsets.fromLTRB(20, 10, 10, 10),
                       child: Text(
@@ -369,24 +390,6 @@ class EditRecordPageState extends State<EditRecordPage> {
               ),
             ),
           ])),
-    );
-  }
-
-  // Helper function to build the overlay icon container
-  Widget _buildOverlayIcon(BuildContext context, IconData overlayIcon) {
-    return Container(
-      margin: EdgeInsets.only(left: 32, top: 22),
-      width: 20,
-      height: 20,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Theme.of(context).colorScheme.surface,
-      ),
-      child: Icon(
-        overlayIcon,
-        size: 15,
-        color: Theme.of(context).colorScheme.onSurface,
-      ),
     );
   }
 
@@ -408,16 +411,25 @@ class EditRecordPageState extends State<EditRecordPage> {
                 identifier: 'date-field',
                 child: InkWell(
                     onTap: () async {
+                      if (readOnly) {
+                        return; // do nothing!
+                      }
                       FocusScope.of(context).unfocus();
-                      DateTime initialDate = record!.dateTime ?? DateTime.now();
+                      // Use the localDisplayDate for the initial date
+                      DateTime initialDate = localDisplayDate ?? DateTime.now();
                       DateTime? result = await showDatePicker(
                           context: context,
                           initialDate: initialDate,
                           firstDate: DateTime(1970),
-                          lastDate: DateTime.now().add(new Duration(days: 365)));
+                          lastDate:
+                              DateTime.now().add(new Duration(days: 365)));
                       if (result != null) {
                         setState(() {
-                          record!.dateTime = result;
+                          // Update the localDisplayDate
+                          localDisplayDate = result;
+                          // Convert the selected local date to a UTC date
+                          record!.utcDateTime = result.toUtc();
+                          record!.timeZoneName = ServiceConfig.localTimezone;
                         });
                       }
                     },
@@ -428,13 +440,15 @@ class EditRecordPageState extends State<EditRecordPage> {
                             Icon(
                               Icons.calendar_today,
                               size: 28,
-                              color:
-                                  Theme.of(context).colorScheme.onSurfaceVariant,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
                             Container(
                               margin: EdgeInsets.only(left: 20, right: 20),
                               child: Text(
-                                getDateStr(record!.dateTime),
+                                // Use the localDisplayDate for display
+                                getDateStr(localDisplayDate),
                                 style: TextStyle(
                                     fontSize: 20,
                                     color: Theme.of(context)
@@ -446,9 +460,7 @@ class EditRecordPageState extends State<EditRecordPage> {
                         ))),
               ),
               Visibility(
-                visible: record!.id == null ||
-                    recurrentPeriod !=
-                        null, // when record comes from recurrent record
+                visible: record!.id == null || recurrentPeriod != null,
                 child: Column(
                   children: [
                     Divider(
@@ -479,7 +491,8 @@ class EditRecordPageState extends State<EditRecordPage> {
                                               child: new DropdownButton<int>(
                                             iconSize: 0.0,
                                             items: dropDownList,
-                                            onChanged: ServiceConfig.isPremium &&
+                                            onChanged: ServiceConfig
+                                                        .isPremium &&
                                                     record!.id == null
                                                 ? (value) {
                                                     setState(() {
@@ -499,20 +512,23 @@ class EditRecordPageState extends State<EditRecordPage> {
                                             isExpanded: true,
                                             hint: recurrentPeriod == null
                                                 ? Container(
-                                                    margin: const EdgeInsets.only(
-                                                        left: 10.0),
+                                                    margin:
+                                                        const EdgeInsets.only(
+                                                            left: 10.0),
                                                     child: Text(
                                                       "Not repeat".i18n,
                                                       style: TextStyle(
                                                           fontSize: 20.0,
-                                                          color: Theme.of(context)
+                                                          color: Theme.of(
+                                                                  context)
                                                               .colorScheme
                                                               .onSurfaceVariant),
                                                     ),
                                                   )
                                                 : Container(
-                                                    margin: const EdgeInsets.only(
-                                                        left: 10.0),
+                                                    margin:
+                                                        const EdgeInsets.only(
+                                                            left: 10.0),
                                                     child: Text(
                                                       recurrentPeriodString(
                                                           recurrentPeriod),
@@ -522,8 +538,8 @@ class EditRecordPageState extends State<EditRecordPage> {
                                                   ),
                                           )),
                                           Visibility(
-                                            child:
-                                                getProLabel(labelFontSize: 12.0),
+                                            child: getProLabel(
+                                                labelFontSize: 12.0),
                                             visible: !ServiceConfig.isPremium,
                                           ),
                                           Visibility(
@@ -583,6 +599,7 @@ class EditRecordPageState extends State<EditRecordPage> {
             child: Semantics(
               identifier: 'amount-field',
               child: TextFormField(
+                  enabled: !readOnly,
                   controller: _textEditingController,
                   autofocus: record!.value == null,
                   onChanged: (text) {
@@ -623,7 +640,6 @@ class EditRecordPageState extends State<EditRecordPage> {
     if (numericValue != null) {
       numericValue = numericValue.abs();
       if (record!.category!.categoryType == CategoryType.expense) {
-        // value is an expenses, needs to be negative
         numericValue = numericValue * -1;
       }
       record!.value = numericValue;
@@ -642,79 +658,80 @@ class EditRecordPageState extends State<EditRecordPage> {
   recurrentPeriodHasBeenUpdated(RecurrentRecordPattern toSet) {
     bool recurrentPeriodHasChanged = toSet.recurrentPeriod!.index !=
         passedReccurrentRecordPattern!.recurrentPeriod!.index;
-    bool startingDateHasChanged = toSet.dateTime!.millisecondsSinceEpoch !=
-        passedReccurrentRecordPattern!.dateTime!.millisecondsSinceEpoch;
+    // Compare the UTC timestamps
+    bool startingDateHasChanged = toSet.utcDateTime.millisecondsSinceEpoch !=
+        passedReccurrentRecordPattern!.utcDateTime.millisecondsSinceEpoch;
     return recurrentPeriodHasChanged || startingDateHasChanged;
   }
 
   addOrUpdateRecurrentPattern({id}) async {
+    // Create a new recurrent pattern from the updated record
     RecurrentRecordPattern recordPattern =
-        RecurrentRecordPattern.fromRecord(record!, recurrentPeriod, id: id);
+        RecurrentRecordPattern.fromRecord(record!, recurrentPeriod!, id: id);
     if (id != null) {
       if (recurrentPeriodHasBeenUpdated(recordPattern)) {
-        // RecurrentPeriod or Dates have been updated
-        // The user will see old records with the new recurrent period
-        // For consistency reasons with the pre-existing generated records
-        // It is better to completely delete the pattern and create a new one
-        // In this case, the old record will lose the reference to the pattern
-        // and it will not create confusion.
-        await database.deleteFutureRecordsByPatternId(id, record!.dateTime!);
+        await database.deleteFutureRecordsByPatternId(id, record!.utcDateTime);
         await database.deleteRecurrentRecordPatternById(id);
         await database.addRecurrentRecordPattern(recordPattern);
       } else {
-        // Value or some description has been updated
-        await database.deleteFutureRecordsByPatternId(id, record!.dateTime!);
+        await database.deleteFutureRecordsByPatternId(id, record!.utcDateTime);
         await database.updateRecordPatternById(id, recordPattern);
       }
     } else {
-      // Since ID is null, a new recurrent pattern needs to be created
       await database.addRecurrentRecordPattern(recordPattern);
     }
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   AppBar _getAppBar() {
-    return AppBar(title: Text('Edit record'.i18n), actions: <Widget>[
-      Visibility(
-          visible: widget.passedRecord != null ||
-              widget.passedReccurrentRecordPattern != null,
-          child: IconButton(
-              icon: Semantics(
-                  identifier: "delete-button",
-                  child: const Icon(Icons.delete)),
-              tooltip: 'Delete'.i18n,
-              onPressed: () async {
-                AlertDialogBuilder deleteDialog =
-                    AlertDialogBuilder("Critical action".i18n)
-                        .addTrueButtonName("Yes".i18n)
-                        .addFalseButtonName("No".i18n);
-                if (widget.passedRecord != null) {
-                  deleteDialog = deleteDialog.addSubtitle(
-                      "Do you really want to delete this record?".i18n);
-                } else {
-                  deleteDialog = deleteDialog.addSubtitle(
-                      "Do you really want to delete this recurrent record?"
-                          .i18n);
-                }
-                var continueDelete = await showDialog(
-                    context: context,
-                    builder: (BuildContext context) {
-                      return deleteDialog.build(context);
-                    });
-                if (continueDelete) {
-                  if (widget.passedRecord != null) {
-                    await database.deleteRecordById(record!.id);
-                  } else {
-                    String patternId =
-                        widget.passedReccurrentRecordPattern!.id!;
-                    await database.deleteFutureRecordsByPatternId(
-                        patternId, DateTime.now());
-                    await database.deleteRecurrentRecordPatternById(patternId);
-                  }
-                  Navigator.pop(context);
-                }
-              })),
-    ]);
+    return AppBar(
+        title: Text(
+          readOnly ? 'View record'.i18n : 'Edit record'.i18n,
+        ),
+        actions: <Widget>[
+          Visibility(
+              visible: (widget.passedRecord != null ||
+                      widget.passedReccurrentRecordPattern != null) &&
+                  !readOnly,
+              child: IconButton(
+                  icon: Semantics(
+                      identifier: "delete-button",
+                      child: const Icon(Icons.delete)),
+                  tooltip: 'Delete'.i18n,
+                  onPressed: () async {
+                    AlertDialogBuilder deleteDialog =
+                        AlertDialogBuilder("Critical action".i18n)
+                            .addTrueButtonName("Yes".i18n)
+                            .addFalseButtonName("No".i18n);
+                    if (widget.passedRecord != null) {
+                      deleteDialog = deleteDialog.addSubtitle(
+                          "Do you really want to delete this record?".i18n);
+                    } else {
+                      deleteDialog = deleteDialog.addSubtitle(
+                          "Do you really want to delete this recurrent record?"
+                              .i18n);
+                    }
+                    var continueDelete = await showDialog(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return deleteDialog.build(context);
+                        });
+                    if (continueDelete) {
+                      if (widget.passedRecord != null) {
+                        await database.deleteRecordById(record!.id);
+                      } else {
+                        String patternId =
+                            widget.passedReccurrentRecordPattern!.id!;
+                        // Use the current UTC time when deleting future records
+                        await database.deleteFutureRecordsByPatternId(
+                            patternId, DateTime.now().toUtc());
+                        await database
+                            .deleteRecurrentRecordPatternById(patternId);
+                      }
+                      Navigator.pop(context);
+                    }
+                  })),
+        ]);
   }
 
   Widget _getForm() {
@@ -748,31 +765,29 @@ class EditRecordPageState extends State<EditRecordPage> {
       appBar: _getAppBar(),
       resizeToAvoidBottomInset: false,
       body: SingleChildScrollView(child: _getForm()),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          if (_formKey.currentState!.validate()) {
-            if (isARecurrentPattern()) {
-              String? recurrentPatternId;
-              if (passedReccurrentRecordPattern != null) {
-                recurrentPatternId = this.passedReccurrentRecordPattern!.id;
-              }
-              await addOrUpdateRecurrentPattern(
-                id: recurrentPatternId,
-              );
-            } else {
-              // it is a normal record, either single or it comes from a
-              // recurrent pattern. When saving the record, we need
-              // to add/update the single instance and never touch the pattern
-              // from this page
-              await addOrUpdateRecord();
-            }
-          }
-        },
-        tooltip: 'Save'.i18n,
-        child: Semantics(
-            identifier: 'save-button',
-            child: const Icon(Icons.save)),
-      ),
+      floatingActionButton: readOnly
+          ? null
+          : FloatingActionButton(
+              onPressed: () async {
+                if (_formKey.currentState!.validate()) {
+                  if (isARecurrentPattern()) {
+                    String? recurrentPatternId;
+                    if (passedReccurrentRecordPattern != null) {
+                      recurrentPatternId =
+                          this.passedReccurrentRecordPattern!.id;
+                    }
+                    await addOrUpdateRecurrentPattern(
+                      id: recurrentPatternId,
+                    );
+                  } else {
+                    await addOrUpdateRecord();
+                  }
+                }
+              },
+              tooltip: 'Save'.i18n,
+              child: Semantics(
+                  identifier: 'save-button', child: const Icon(Icons.save)),
+            ),
     );
   }
 }
