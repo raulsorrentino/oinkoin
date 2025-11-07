@@ -5,7 +5,7 @@ import 'package:piggybank/models/recurrent-period.dart';
 import 'package:piggybank/models/recurrent-record-pattern.dart';
 import 'package:piggybank/services/recurrent-record-service.dart';
 import 'package:piggybank/services/service-config.dart';
-import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/data/latest_all.dart' as tz;
 
 // A helper method to perform the common date assertions.
 void _assertRecordsMatchDates(
@@ -310,6 +310,29 @@ void main() {
       ];
 
       _assertRecordsMatchDates(records, expectedDatesInNewYorkTime);
+    });
+
+    test('generated records should have tags from the recurrent pattern', () {
+      final patternStartDate = DateTime(2023, 1, 1).toUtc();
+      final endDate = DateTime(2023, 1, 3).toUtc();
+      final tags = ['work', 'travel', 'expenses'];
+
+      final recordPattern = RecurrentRecordPattern(
+        50.0,
+        "Tagged Recurrent Record",
+        category1,
+        patternStartDate,
+        RecurrentPeriod.EveryDay,
+        tags: tags.toSet(),
+      );
+
+      final records = recurrentRecordService
+          .generateRecurrentRecordsFromDateTime(recordPattern, endDate);
+
+      expect(records.length, 3); // Expect 3 records for 3 days
+      for (var record in records) {
+        expect(record.tags, equals(tags));
+      }
     });
   });
 }

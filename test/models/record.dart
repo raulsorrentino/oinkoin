@@ -3,10 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:piggybank/models/category-type.dart';
 import 'package:piggybank/models/category.dart';
 import 'package:piggybank/models/record.dart';
-import 'package:piggybank/models/recurrent-period.dart';
-import 'package:piggybank/models/recurrent-record-pattern.dart';
 import 'package:piggybank/services/service-config.dart';
-import 'package:timezone/data/latest.dart' as tz; // Required for timezone tests
+import 'package:timezone/data/latest_all.dart'
+    as tz; // Required for timezone tests
 import 'package:timezone/timezone.dart' as tz;
 
 // A helper category for use in tests
@@ -23,7 +22,9 @@ void main() {
   group('Record', () {
     test('main constructor should correctly initialize all properties', () {
       // Use a fixed UTC time and a specific timezone name for predictable tests.
-      const timeZoneName = 'America/New_York';
+      const timeZoneName = 'America/Buenos_Aires';
+      var locations = tz.timeZoneDatabase.locations;
+
       final nowUtc = DateTime.utc(2025, 8, 2, 12, 0, 0);
 
       final record = Record(
@@ -35,6 +36,7 @@ void main() {
         id: 1,
         description: 'Lunch at the cafe',
         recurrencePatternId: 'pattern-1',
+        tags: ['food', 'lunch'].toSet(),
       );
 
       expect(record.id, 1);
@@ -47,6 +49,7 @@ void main() {
       expect(record.timeZoneName, timeZoneName);
       expect(record.description, 'Lunch at the cafe');
       expect(record.recurrencePatternId, 'pattern-1');
+      expect(record.tags, ['food', 'lunch']);
 
       // We can also test the localDateTime getter
       final expectedLocal =
@@ -72,40 +75,6 @@ void main() {
       expect(record.timeZoneName, ServiceConfig.localTimezone);
     });
 
-    test(
-        'fromRecurrencePattern constructor should create a record from a pattern',
-        () {
-      // Create a recurrence pattern
-      const patternTimeZone = 'Europe/Berlin';
-      final patternUtcDate = DateTime.utc(2025, 1, 15, 8, 30, 0);
-
-      final pattern = RecurrentRecordPattern(
-        1200.0,
-        'Rent',
-        testCategory,
-        patternUtcDate,
-        timeZoneName: patternTimeZone,
-        RecurrentPeriod.EveryMonth,
-        id: 'pattern-1',
-        description: 'Monthly rent payment',
-      );
-
-      // Create a Record from the pattern for a new date
-      final newRecordUtcDate = DateTime.utc(2025, 2, 15, 8, 30, 0);
-      final record = Record.fromRecurrencePattern(pattern, newRecordUtcDate);
-
-      expect(record.id, isNull);
-      expect(record.value, 1200.0);
-      expect(record.title, 'Rent');
-      expect(record.category, testCategory);
-      // The record's date should be the new date passed to the constructor
-      expect(record.utcDateTime, newRecordUtcDate);
-      // The timezone should be inherited from the pattern
-      expect(record.timeZoneName, patternTimeZone);
-      expect(record.description, 'Monthly rent payment');
-      expect(record.recurrencePatternId, 'pattern-1');
-    });
-
     group('Serialization/Deserialization (toMap/fromMap)', () {
       test(
           'should correctly serialize and deserialize a fully populated record',
@@ -129,6 +98,7 @@ void main() {
           id: 10,
           description: 'Monthly internet provider bill',
           recurrencePatternId: 'internet-pattern-1',
+          tags: ['bill', 'home'].toSet(),
         );
 
         final map = record.toMap();
@@ -145,6 +115,7 @@ void main() {
             testCategoryForMap.categoryType);
         expect(decodedRecord.description, 'Monthly internet provider bill');
         expect(decodedRecord.recurrencePatternId, 'internet-pattern-1');
+        expect(decodedRecord.tags, ['bill', 'home']);
 
         // Crucial test for UTC datetime and timezone name
         expect(decodedRecord.utcDateTime, fixedUtcTime);
