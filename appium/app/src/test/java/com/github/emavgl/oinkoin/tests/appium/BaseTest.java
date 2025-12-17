@@ -3,31 +3,38 @@ package com.github.emavgl.oinkoin.tests.appium;
 import com.github.emavgl.oinkoin.tests.appium.utils.Constants;
 import io.appium.java_client.android.AndroidDriver;
 import io.appium.java_client.android.options.UiAutomator2Options;
-import org.testng.annotations.AfterSuite;
-import org.testng.annotations.BeforeSuite;
 
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.time.Duration;
 
 public class BaseTest {
-    protected AndroidDriver driver;
+    protected static AndroidDriver driver;
 
-    @BeforeSuite
+    public static AndroidDriver getDriver() {
+        return driver;
+    }
+
     public void setUp() {
-        UiAutomator2Options options = new UiAutomator2Options()
-                .setAutomationName("UiAutomator2")
-                .setPlatformName(Constants.PLATFORM_NAME)
-                .setPlatformVersion(Constants.PLATFORM_VERSION)
-                .setUdid(Constants.UDID)
-                .setApp(Constants.APP_PATH)
-                .setAppPackage(Constants.APP_PACKAGE)
-                .setFullReset(true)
-                .amend("appium:settings[disableIdLocatorAutocompletion]", true)
-                .amend("appium:newCommandTimeout", 3600);
+        if (driver == null) {
+            UiAutomator2Options options = new UiAutomator2Options()
+                    .setAutomationName("UiAutomator2")
+                    .setPlatformName(Constants.PLATFORM_NAME)
+                    .setPlatformVersion(Constants.PLATFORM_VERSION)
+                    .setUdid(Constants.UDID)
+                    .setApp(Constants.APP_PATH)
+                    .setAppPackage(Constants.APP_PACKAGE)
+                    .setFullReset(true)
+                    .amend("appium:settings[disableIdLocatorAutocompletion]", true)
+                    .amend("appium:newCommandTimeout", 3600);
 
-        driver = new AndroidDriver(getAppiumServerUrl(), options);
-        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
+            try {
+                driver = new AndroidDriver(getAppiumServerUrl(), options);
+                driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to initialize Appium Driver", e);
+            }
+        }
     }
 
     private URL getAppiumServerUrl() {
@@ -37,11 +44,11 @@ public class BaseTest {
             throw new RuntimeException("Invalid URL for Appium server", e);
         }
     }
-
-    @AfterSuite
+    
     public void tearDown() {
         if (driver != null) {
             driver.quit();
+            driver = null;
         }
     }
 }

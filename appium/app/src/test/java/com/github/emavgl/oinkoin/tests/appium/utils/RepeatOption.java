@@ -19,4 +19,13 @@ public enum RepeatOption {
     public String getDisplayName() {
         return displayName;
     }
+
+    public static RepeatOption fromString(String text) {
+        for (RepeatOption b : RepeatOption.values()) {
+            if (b.displayName.equalsIgnoreCase(text)) {
+                return b;
+            }
+        }
+        throw new IllegalArgumentException("No constant with text " + text + " found");
+    }
 }
