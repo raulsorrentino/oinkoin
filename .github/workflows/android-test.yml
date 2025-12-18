@@ -38,6 +38,13 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: Create Dummy key.properties
+        run: |
+          echo "storePassword=dummy" > android/key.properties
+          echo "keyPassword=dummy" >> android/key.properties
+          echo "keyAlias=dummy" >> android/key.properties
+          echo "storeFile=dummy.keystore" >> android/key.properties
+          
       - name: Build Flutter APK
         run: |
           ./submodules/flutter/bin/flutter pub get
