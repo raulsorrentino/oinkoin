@@ -27,6 +27,7 @@ jobs:
           cd submodules/flutter
           git fetch origin stable
           git reset --merge
+          git checkout -B stable origin/stable
           git checkout stable
           git pull origin stable
           ./bin/flutter --version
