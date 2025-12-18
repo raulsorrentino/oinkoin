@@ -24,6 +24,9 @@ public class BaseTest {
                     .amend("appium:settings[disableIdLocatorAutocompletion]", true)
                     .amend("appium:newCommandTimeout", 3600);
 
+            options.setCapability("uiautomator2ServerInstallTimeout", 60000);
+            options.setCapability("adbExecTimeout", 60000);
+
             // --- CI vs LOCAL CONFIGURATION STRATEGY ---
             
             // Check if 'appPath' is passed via Gradle (CI Environment)
@@ -52,7 +55,7 @@ public class BaseTest {
 
             try {
                 driver = new AndroidDriver(getAppiumServerUrl(), options);
-                driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
+                driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
             } catch (Exception e) {
                 throw new RuntimeException("Failed to initialize Appium Driver. Check if Appium Server is running.", e);
             }

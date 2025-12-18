@@ -6,6 +6,7 @@ import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
 import org.openqa.selenium.support.PageFactory;
+import java.time.Duration;
 
 public abstract class BasePage {
 
@@ -26,7 +27,7 @@ public abstract class BasePage {
 
     public BasePage(AppiumDriver driver) {
         this.driver = driver;
-        PageFactory.initElements(new AppiumFieldDecorator(driver), this);
+        PageFactory.initElements(new AppiumFieldDecorator(driver, Duration.ofSeconds(20)), this);
     }
 
     public boolean isDisplayed(WebElement webElement) {
