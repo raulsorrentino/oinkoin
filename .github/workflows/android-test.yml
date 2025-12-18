@@ -25,7 +25,7 @@ jobs:
         run: |
           git submodule update --init --recursive
           cd submodules/flutter
-          git fetch origin stable
+          git fetch --tags origin stable
           git reset --merge
           git checkout -B stable FETCH_HEAD
           git checkout stable
