@@ -5,7 +5,7 @@ import io.cucumber.testng.CucumberOptions;
 import org.testng.annotations.Test;
 
 @CucumberOptions(
-        features = "src/test/resources/features",
+        features = "classpath:features",
         glue = {"com.github.emavgl.oinkoin.tests.appium.hooks", "com.github.emavgl.oinkoin.tests.appium.steps"},
         plugin = {
                 "pretty",
