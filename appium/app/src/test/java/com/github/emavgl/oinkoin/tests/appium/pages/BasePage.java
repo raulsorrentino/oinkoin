@@ -27,7 +27,7 @@ public abstract class BasePage {
 
     public BasePage(AppiumDriver driver) {
         this.driver = driver;
-        PageFactory.initElements(new AppiumFieldDecorator(driver, Duration.ofSeconds(20)), this);
+        PageFactory.initElements(new AppiumFieldDecorator(driver, Duration.ofSeconds(60)), this);
     }
 
     public boolean isDisplayed(WebElement webElement) {

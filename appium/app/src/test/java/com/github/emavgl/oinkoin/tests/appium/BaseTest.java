@@ -21,11 +21,10 @@ public class BaseTest {
                     .setPlatformName(Constants.PLATFORM_NAME)
                     .setNoReset(false)
                     .setFullReset(true)
-                    .amend("appium:settings[disableIdLocatorAutocompletion]", true)
-                    .amend("appium:newCommandTimeout", 3600);
-
-            options.setCapability("uiautomator2ServerInstallTimeout", 60000);
-            options.setCapability("adbExecTimeout", 60000);
+                    .setUiautomator2ServerInstallTimeout(Duration.ofMillis(60000))
+                    .setAdbExecTimeout(Duration.ofMillis(60000))
+                    .setNewCommandTimeout(Duration.ofSeconds(3600))
+                    .amend("appium:settings[disableIdLocatorAutocompletion]", true);
 
             // --- CI vs LOCAL CONFIGURATION STRATEGY ---
             
