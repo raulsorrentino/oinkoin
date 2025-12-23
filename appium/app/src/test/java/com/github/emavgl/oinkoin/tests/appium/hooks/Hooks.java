@@ -23,7 +23,7 @@ public class Hooks extends BaseTest {
             try {
                 System.out.println("[HOOKS] Scenario failed! Taking screenshot...");
 
-                final byte[] screenshot = ((TakesScreenshot) BaseTest.getDriver()).getScreenshotAs(OutputType.BYTES);
+                final byte[] screenshot = BaseTest.getDriver().getScreenshotAs(OutputType.BYTES);
                 scenario.attach(screenshot, "image/png", "Screenshot on Failure");
 
                 System.out.println("[HOOKS] Page Source on Failure:");

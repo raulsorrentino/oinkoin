@@ -5,8 +5,10 @@ import com.github.emavgl.oinkoin.tests.appium.utils.RecordData;
 import io.appium.java_client.AppiumBy;
 import io.appium.java_client.AppiumDriver;
 import org.openqa.selenium.NoSuchElementException;
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
+import org.openqa.selenium.support.ui.ExpectedConditions;
 
 import java.text.NumberFormat;
 import java.time.LocalDate;
@@ -34,6 +36,22 @@ public class HomePage extends BasePage {
 
     public HomePage(AppiumDriver driver) {
         super(driver);
+    }
+
+    /**
+     * Explicitly waits for the application to complete its "Cold Start".
+     * This is critical in CI environments where emulators (without GPU acceleration)
+     * might take significantly longer to render the first Flutter frame.
+     */
+    public void waitForAppToLoad() {
+        System.out.println("[HomePage] Waiting for app to load...");
+        try {
+            wait.until(ExpectedConditions.visibilityOf(homeTabSelected));
+            System.out.println("[HomePage] App loaded successfully. UI is ready.");
+        } catch (TimeoutException e) {
+            System.err.println("[HomePage] Critical: App failed to load within the 45s timeout.");
+            throw e;
+        }
     }
 
     public String dateRangeText() {

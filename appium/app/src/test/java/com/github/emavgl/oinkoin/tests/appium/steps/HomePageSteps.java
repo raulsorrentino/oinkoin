@@ -30,6 +30,7 @@ public class HomePageSteps {
 
     @Given("The app is open on the Homepage")
     public void openAppInHomepage() {
+        homePage.waitForAppToLoad();
         homePage.openHomeTab();
     }
 

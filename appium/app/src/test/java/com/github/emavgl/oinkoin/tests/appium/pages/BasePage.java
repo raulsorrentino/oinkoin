@@ -6,11 +6,14 @@ import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
 import org.openqa.selenium.support.PageFactory;
+import org.openqa.selenium.support.ui.WebDriverWait;
+
 import java.time.Duration;
 
 public abstract class BasePage {
 
     protected final AppiumDriver driver;
+    protected final WebDriverWait wait;
 
     @FindBy(id = "home-tab")
     protected WebElement homeTab;
@@ -27,7 +30,8 @@ public abstract class BasePage {
 
     public BasePage(AppiumDriver driver) {
         this.driver = driver;
-        PageFactory.initElements(new AppiumFieldDecorator(driver, Duration.ofSeconds(60)), this);
+        PageFactory.initElements(new AppiumFieldDecorator(driver), this);
+        this.wait = new WebDriverWait(driver, Duration.ofSeconds(180));
     }
 
     public boolean isDisplayed(WebElement webElement) {
