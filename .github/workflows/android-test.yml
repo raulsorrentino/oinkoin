@@ -69,20 +69,26 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Create Dummy key.properties
+      - name: Decode Keystore & Configure Signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          echo "storePassword=dummy" > android/key.properties
-          echo "keyPassword=dummy" >> android/key.properties
-          echo "keyAlias=dummy" >> android/key.properties
-          echo "storeFile=dummy.keystore" >> android/key.properties
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          echo "storePassword=$ANDROID_STORE_PASSWORD" > android/key.properties
+          echo "keyPassword=$ANDROID_KEY_PASSWORD" >> android/key.properties
+          echo "keyAlias=$ANDROID_KEY_ALIAS" >> android/key.properties
+          echo "storeFile=upload-keystore.jks" >> android/key.properties
           
       - name: Build Flutter APK
         run: |
           ./submodules/flutter/bin/flutter pub get
-          ./submodules/flutter/bin/flutter build apk --flavor pro --debug
+          ./submodules/flutter/bin/flutter build apk --flavor pro --release
           
           echo "APK generated at:"
-          ls -la $GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-debug.apk
+          ls -la $GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-release.apk
 
       - name: Install Appium Environment
         run: |
@@ -102,12 +108,11 @@ jobs:
           disk-size: 4096M
           heap-size: 256M
           disable-animations: true
-
           script: >
             cd appium && 
             chmod +x gradlew && 
             ./gradlew clean test 
-            -DappPath=$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-debug.apk
+            -DappPath=$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-release.apk
 
       - name: Upload Test Reports
         if: always()

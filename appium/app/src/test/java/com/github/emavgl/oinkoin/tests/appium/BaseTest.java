@@ -54,6 +54,7 @@ public class BaseTest {
 
             try {
                 driver = new AndroidDriver(getAppiumServerUrl(), options);
+                driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
             } catch (Exception e) {
                 throw new RuntimeException("Failed to initialize Appium Driver. Check if Appium Server is running.", e);
             }
