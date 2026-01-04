@@ -85,7 +85,7 @@ jobs:
       - name: Build Flutter APK
         run: |
           ./submodules/flutter/bin/flutter pub get
-          ./submodules/flutter/bin/flutter build apk --flavor pro --release
+          ./submodules/flutter/bin/flutter build apk --flavor pro --release --target-platform android-x64
           
           echo "APK generated at:"
           ls -la $GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-release.apk
