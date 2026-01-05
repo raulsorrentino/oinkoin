@@ -115,10 +115,17 @@ jobs:
             ./gradlew clean test 
             -DappPath=$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-release.apk
 
+      - name: Save Logcat on Failure
+        if: failure()
+        run: |
+          /usr/local/lib/android/sdk/platform-tools/adb logcat -d > logcat.txt
+
       - name: Upload Test Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: cucumber-reports
-          path: appium/build/reports/
+          name: test-reports
+          path: |
+            appium/build/reports/
+            logcat.txt
           retention-days: 5
