@@ -109,14 +109,16 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-save -noaudio -no-boot-anim -camera-back none
           script: |
-            cd appium && chmod +x gradlew
-            ./gradlew clean test -DappPath=$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-release.apk || TEST_EXIT_CODE=$?
-            echo "Test finished with exit code: ${TEST_EXIT_CODE:-0}"
+            chmod +x $GITHUB_WORKSPACE/appium/gradlew
+            $GITHUB_WORKSPACE/appium/gradlew -p $GITHUB_WORKSPACE/appium clean test -DappPath=$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-release.apk && TEST_EXIT_CODE=0 || TEST_EXIT_CODE=$?
+            
+            echo "Test execution finished. Exit code: ${TEST_EXIT_CODE:-0}"
 
             echo "Capturing Logcat..."
             /usr/local/lib/android/sdk/platform-tools/adb logcat -d > $GITHUB_WORKSPACE/logcat.txt
 
-            if [ ! -z "$TEST_EXIT_CODE" ] && [ "$TEST_EXIT_CODE" -ne 0 ]; then
+            if [ "$TEST_EXIT_CODE" -ne 0 ]; then
+              echo "Tests failed. Exiting with error code."
               exit $TEST_EXIT_CODE
             fi
 
