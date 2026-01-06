@@ -88,7 +88,7 @@ jobs:
           ./submodules/flutter/bin/flutter build apk --flavor pro --debug --target-platform android-x64
           
           echo "APK generated at:"
-          ls -la $GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-release.apk
+          ls -la $GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-debug.apk
 
       - name: Install Appium Environment
         run: |
