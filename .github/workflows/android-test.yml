@@ -103,12 +103,13 @@ jobs:
           api-level: 29
           target: google_apis
           arch: x86_64
-          profile: pixel_4
+          profile: Nexus 5X
           disk-size: 2G
           heap-size: 1G
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot-save -no-audio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-audio -no-boot-anim -wipe-data
           script: |
+            echo "Granting permissions..."
             chmod +x $GITHUB_WORKSPACE/appium/gradlew
             
             echo "Starting Appium test..."
@@ -120,8 +121,11 @@ jobs:
             /usr/local/lib/android/sdk/platform-tools/adb logcat -d > $GITHUB_WORKSPACE/logcat.txt
             
             if [ $TEST_RESULT -ne 0 ]; then
-              echo "The tests failed."
+              echo "Tests failed."
               exit 1
+            else
+              echo "Tests Passed."
+              exit 0
             fi
       - name: Upload Test Reports
         if: always()
