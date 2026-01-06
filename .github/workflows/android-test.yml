@@ -113,20 +113,15 @@ jobs:
             chmod +x $GITHUB_WORKSPACE/appium/gradlew
             
             echo "Starting Appium test..."
-            $GITHUB_WORKSPACE/appium/gradlew -p $GITHUB_WORKSPACE/appium clean test -DappPath=$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-debug.apk && TEST_RESULT=0 || TEST_RESULT=1
+            $GITHUB_WORKSPACE/appium/gradlew -p $GITHUB_WORKSPACE/appium clean test -DappPath=$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-debug.apk && EXIT_CODE=0 || EXIT_CODE=1
             
-            echo "Tests completed with code: $TEST_RESULT"
+            echo "Tests finished. Exit code was: $EXIT_CODE"
             
             echo "Saving Logcat..."
             /usr/local/lib/android/sdk/platform-tools/adb logcat -d > $GITHUB_WORKSPACE/logcat.txt
             
-            if [ $TEST_RESULT -ne 0 ]; then
-              echo "Tests failed."
-              exit 1
-            else
-              echo "Tests Passed."
-              exit 0
-            fi
+            exit $EXIT_CODE
+            
       - name: Upload Test Reports
         if: always()
         uses: actions/upload-artifact@v4
