@@ -11,6 +11,7 @@ import org.openqa.selenium.support.FindBy;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 
 import java.text.NumberFormat;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.Month;
 import java.time.Year;
@@ -45,12 +46,27 @@ public class HomePage extends BasePage {
      */
     public void waitForAppToLoad() {
         System.out.println("[HomePage] Waiting for app to load...");
+        
+        // Trigger the wake-up tap before waiting for the element
+        wakeUpFlutter();
+
         try {
             wait.until(ExpectedConditions.visibilityOf(homeTabSelected));
             System.out.println("[HomePage] App loaded successfully. UI is ready.");
         } catch (TimeoutException e) {
-            System.err.println("[HomePage] Critical: App failed to load within the 45s timeout.");
-            throw e;
+            System.err.println("[HomePage] Critical: App failed to load within the timeout.");
+            
+            // Last resort retry: if it fails, try a second wake-up and a short extra wait
+            System.out.println("[HomePage] Retrying with a second wake-up tap...");
+            wakeUpFlutter();
+            
+            try {
+                 wait.withTimeout(Duration.ofSeconds(10))
+                     .until(ExpectedConditions.visibilityOf(homeTabSelected));
+            } catch (TimeoutException ex) {
+                 // If it fails again, propagate the exception as a real failure
+                 throw ex; 
+            }
         }
     }
 
