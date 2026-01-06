@@ -133,6 +133,6 @@ jobs:
         with:
           name: test-reports
           path: |
-            appium/app/build/reports/
+            appium/build/reports/
             logcat.txt
           retention-days: 5
