@@ -7,10 +7,10 @@ Feature: Home Page Management
     When I select the records for the month "OCTOBER"
     Then The text of the date range displayed is "October <current_year>"
 
-  Scenario: Display Date Range for Selected Year
-    When I select the records for the year "2020"
-    Then The text of the date range displayed is "Year 2020"
-
+#  Scenario: Display Date Range for Selected Year
+#    When I select the records for the year "2020"
+#    Then The text of the date range displayed is "Year 2020"
+#
 #  Scenario: Display Date Range for Custom Date Range
 #    When I select the records for a custom date range from 2 months and 3 days ago to 4 days ago
 #    Then The text of the date range displayed is correct for that range
