@@ -113,14 +113,27 @@ jobs:
             chmod +x $GITHUB_WORKSPACE/appium/gradlew
             
             echo "Starting Appium test..."
-            $GITHUB_WORKSPACE/appium/gradlew -p $GITHUB_WORKSPACE/appium clean test -DappPath=$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-debug.apk && EXIT_CODE=0 || EXIT_CODE=1
             
-            echo "Tests finished. Exit code was: $EXIT_CODE"
+            set +e
+            
+            $GITHUB_WORKSPACE/appium/gradlew -p $GITHUB_WORKSPACE/appium clean test -DappPath=$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-debug.apk
+            
+            TEST_STATUS=$?
+            
+            set -e
+            
+            echo "Tests finished. Final Exit code: $TEST_STATUS"
             
             echo "Saving Logcat..."
             /usr/local/lib/android/sdk/platform-tools/adb logcat -d > $GITHUB_WORKSPACE/logcat.txt
             
-            exit $EXIT_CODE
+            if [ $TEST_STATUS -ne 0 ]; then
+              echo "Tests Failed."
+              exit $TEST_STATUS
+            else
+              echo "Tests Passed."
+              exit 0
+            fi
             
       - name: Upload Test Reports
         if: always()
