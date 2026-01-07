@@ -63,23 +63,4 @@ public abstract class BasePage {
         else
             settingsTabSelected.click();
     }
-
-    protected void wakeUpFlutter() {
-        System.out.println("[BasePage] Attempting 'Wake Up' tap via ADB...");
-        try {
-            // Nexus 5X resolution is 1080x1920. Center is approx 540 960.
-            // We use hardcoded coordinates to be independent of the driver's window size calculation.
-            String cmd = "adb shell input tap 540 960";
-            
-            Process process = Runtime.getRuntime().exec(cmd);
-            process.waitFor();
-            
-            System.out.println("[BasePage] ADB Tap command executed.");
-            
-            // "Short" pause to allow the CPU to process the input and render the frame
-            Thread.sleep(600000);
-        } catch (Exception e) {
-            System.err.println("[BasePage] ADB Wake up failed: " + e.getMessage());
-        }
-    }
 }

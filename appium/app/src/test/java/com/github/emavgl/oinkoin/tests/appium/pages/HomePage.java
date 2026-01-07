@@ -46,19 +46,18 @@ public class HomePage extends BasePage {
      */
     public void waitForAppToLoad() {
         System.out.println("[HomePage] Waiting for app to load...");
-        
-        // Trigger the wake-up tap before waiting for the element
-        wakeUpFlutter();
+
+        try {
+            Thread.sleep(1500);
+        } catch (Exception e) {
+            System.err.println("[HomePage] Sleep interrupted: " + e.getMessage());
+        }
 
         try {
             wait.until(ExpectedConditions.visibilityOf(homeTabSelected));
             System.out.println("[HomePage] App loaded successfully. UI is ready.");
         } catch (TimeoutException e) {
             System.err.println("[HomePage] Critical: App failed to load within the timeout.");
-            
-            // Last resort retry: if it fails, try a second wake-up and a short extra wait
-            System.out.println("[HomePage] Retrying with a second wake-up tap...");
-            wakeUpFlutter();
             
             try {
                  wait.withTimeout(Duration.ofSeconds(10))

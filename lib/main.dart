@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -20,6 +21,9 @@ import 'i18n.dart';
 main() async {
   DartPluginRegistrant.ensureInitialized();
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Ensure semantics are enabled for accessibility features CI
+  SemanticsBinding.instance.ensureSemantics();
 
   tz_data.initializeTimeZones();
   ServiceConfig.localTimezone = await FlutterTimezone.getLocalTimezone();
