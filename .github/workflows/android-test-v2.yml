@@ -63,10 +63,10 @@ jobs:
       - name: Build Flutter APK
         run: |
           ./submodules/flutter/bin/flutter pub get
-          ./submodules/flutter/bin/flutter build apk --flavor pro --debug
+          ./submodules/flutter/bin/flutter build apk --flavor pro --profile
           
           echo "APK generated at:"
-          ls -la $GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-debug.apk
+          ls -la $GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-profile.apk
 
       - name: Install Appium Environment
         run: |
@@ -95,7 +95,7 @@ jobs:
             
             set +e
             
-            $GITHUB_WORKSPACE/appium/gradlew -p $GITHUB_WORKSPACE/appium clean test -DappPath=$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-debug.apk
+            $GITHUB_WORKSPACE/appium/gradlew -p $GITHUB_WORKSPACE/appium clean test -DappPath=$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-profile.apk
             
             TEST_STATUS=$?
             
