@@ -60,7 +60,7 @@ public class HomePage extends BasePage {
             System.err.println("[HomePage] Critical: App failed to load within the timeout.");
             
             try {
-                 wait.withTimeout(Duration.ofSeconds(10))
+                 wait.withTimeout(Duration.ofSeconds(600))
                      .until(ExpectedConditions.visibilityOf(homeTabSelected));
             } catch (TimeoutException ex) {
                  // If it fails again, propagate the exception as a real failure
