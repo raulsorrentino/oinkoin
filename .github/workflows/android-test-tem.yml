@@ -1,0 +1,93 @@
+name: Appium CICD Test
+
+on:
+  workflow_dispatch:
+
+env:
+  JAVA_VERSION: '17'
+  JAVA_DISTRIBUTION: 'zulu'
+  MAVEN_CACHE: maven
+
+  ANDROID_PROFILE: Nexus 6
+  ANDROID_TARGET: google_apis
+  ANDROID_API_LEVEL: 29 
+  ANDROID_ARCH: x86_64
+
+  ARTIFACT_NAME_REMOTE: test-reports
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  run-android-tests-remote:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Checkout project
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Build Flutter APK
+        run: |
+          flutter pub get
+          flutter build apk --flavor pro --profile
+          echo "APK generated at: build/app/outputs/flutter-apk/app-pro-profile.apk"
+
+      - name: Start Appium Server
+        run: |
+          npm install -g appium
+          appium driver install uiautomator2
+          nohup appium --log-level warn --log-timestamp --local-timezone --allow-cors > appium.log 2>&1 &
+          sleep 10
+          curl http://127.0.0.1:4723/wd/hub/sessions || echo "Appium server check finished"
+
+      - name: Run tests on Android emulators
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.ANDROID_API_LEVEL }}
+          target: ${{ env.ANDROID_TARGET }}
+          arch: ${{ env.ANDROID_ARCH }}
+          profile: ${{ env.ANDROID_PROFILE }}
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb shell settings put global window_animation_scale 0
+            adb shell settings put global transition_animation_scale 0
+            adb shell settings put global animator_duration_scale 0
+            
+            echo "Installing APK..."
+            adb install -t -g build/app/outputs/flutter-apk/app-pro-profile.apk
+            
+            echo "Running Appium Tests..."
+            chmod +x appium/gradlew
+            appium/gradlew -p appium clean test -DappPath=$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-pro-profile.apk
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME_REMOTE }}
+          path: |
+            **/build/reports/
+            appium.log
